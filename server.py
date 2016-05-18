@@ -12,7 +12,7 @@ import json
 app = Flask(__name__)
 port = 80 if os.getuid() == 0 else 8000
 
-pool = Pool(5, maxtasksperchild=10)
+pool = Pool(1, maxtasksperchild=50)
 
 @app.route('/')
 def index():
