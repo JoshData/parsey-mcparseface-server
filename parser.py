@@ -56,25 +56,14 @@ dependency_parser = open_parser_eval([
     "--alsologtostderr",
   ])
 
-def make_tree(parse):
-  # Generate a nice ASCII tree.
-  return subprocess.check_output([
-      "bazel-bin/syntaxnet/conll2tree",
-      "--task_context=" + MODEL_DIR + "/context.pbtxt",
-      "--alsologtostderr"
-    ],
-      input=parse.encode("utf8"),
-      cwd=ROOT_DIR,
-    ).decode("utf8")
-
-def format_parse(parse):
+def split_tokens(parse):
   # Format the result.
   def format_token(line):
     x = OrderedDict(zip(
-     ["id", "token", "unknown1", "pos1", "pos2", "unknown2", "parent", "relation", "unknown3", "unknown4"],
+     ["index", "token", "unknown1", "label", "pos", "unknown2", "parent", "relation", "unknown3", "unknown4"],
      line.split("\t")
     ))
-    x["id"] = int(x["id"])
+    x["index"] = int(x["index"])
     x["parent"] = int(x["parent"])
     del x["unknown1"]
     del x["unknown2"]
@@ -98,15 +87,20 @@ def parse_sentence(sentence):
   dependency_parse = send_input(dependency_parser, pos_tags)
 
   # Make a tree.
-  tree = make_tree(dependency_parse)
+  dependency_parse = split_tokens(dependency_parse)
+  tokens = { tok["index"]: tok for tok in dependency_parse }
+  tokens[0] = OrderedDict([ ("sentence", sentence) ])
+  for tok in dependency_parse:
+     tokens[tok['parent']]\
+       .setdefault('tree', OrderedDict()) \
+       .setdefault(tok['relation'], []) \
+       .append(tok)
+     del tok['parent']
+     del tok['relation']
 
-  return OrderedDict([
-    ("sentence", sentence),
-    ("tree", tree.strip().split("\n")[2:]), # first two lines are meta
-    ("tokens", format_parse(dependency_parse)),
-  ])
+  return tokens[0]
 
 
 if __name__ == "__main__":
-  import sys
-  print(parse_sentence(sys.stdin.read().strip()))
+  import sys, pprint
+  pprint.pprint(parse_sentence(sys.stdin.read().strip())["tree"])
